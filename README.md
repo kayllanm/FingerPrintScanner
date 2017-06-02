@@ -1,8 +1,9 @@
-<<<<<<< HEAD
+
 # FingerPrintScanner
 Fingerprint scanner for Android and IOS devices
 =======
 
+=======
 # react-native-fingerprint-scanner
 
 ## Getting started
