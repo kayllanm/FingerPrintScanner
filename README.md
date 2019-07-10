@@ -301,7 +301,7 @@ componentDidMount() {
 ```
 
 ### `release()`: (Android)
-Stops fingerprint scanner listener and optimizes memory.
+Stops fingerprint scanner listener, releases cache of internal state in native code.
 
 - Returns a `Void`
 
