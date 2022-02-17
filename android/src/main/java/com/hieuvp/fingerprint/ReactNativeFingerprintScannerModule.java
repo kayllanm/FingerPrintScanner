@@ -1,15 +1,24 @@
 package com.hieuvp.fingerprint;
 
+import static android.content.Context.MODE_PRIVATE;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.hardware.fingerprint.FingerprintManager;
 import android.os.Build;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.biometric.BiometricPrompt;
 import androidx.biometric.BiometricManager;
-import androidx.biometric.BiometricPrompt.AuthenticationCallback;
 import androidx.biometric.BiometricPrompt.PromptInfo;
+import androidx.core.hardware.fingerprint.FingerprintManagerCompat;
 import androidx.fragment.app.FragmentActivity;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.facebook.react.bridge.LifecycleEventListener;
@@ -38,6 +47,8 @@ public class ReactNativeFingerprintScannerModule
 
     private final ReactApplicationContext mReactContext;
     private BiometricPrompt biometricPrompt;
+    private final String LAST_KEY_ID = "LAST_KEY_ID";
+    private SharedPreferences spref;
 
     // for Samsung/MeiZu compat, Android v16-23
     private FingerprintIdentify mFingerprintIdentify;
@@ -204,7 +215,23 @@ public class ReactNativeFingerprintScannerModule
                 ReactNativeFingerprintScannerModule.this.release();
                 return;
             }
+            int fingersId = 0;
+            try {
+                fingersId = getFingerprintInfo(mReactContext);
+            } catch (NoSuchMethodException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            }
 
+            SharedPreferences sharedPreferences = mReactContext.getSharedPreferences("MySharedPref",MODE_PRIVATE);
+            SharedPreferences.Editor myEdit = sharedPreferences.edit();
+            myEdit.putInt("bioSize", fingersId);
+            myEdit.commit();
             biometricAuthenticate(title, subtitle, description, cancelButton, promise);
         }
     }
@@ -245,6 +272,60 @@ public class ReactNativeFingerprintScannerModule
         }
     }
 
+    @ReactMethod
+    public void hasBiometricSettingsChanged(final Promise promise) {
+        try {
+            // get current fingers id sum
+            int fingersId = getFingerprintInfo(mReactContext);
+            // last saved key
+            SharedPreferences sh = mReactContext.getSharedPreferences("MySharedPref", MODE_PRIVATE);
+
+            int bioSize = sh.getInt("bioSize", 0);
+
+            if (fingersId == bioSize) {
+                promise.resolve(false);
+            }else {
+                promise.resolve(true);
+            }
+
+        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+            promise.resolve(false);
+        }
+    }
+
+    private boolean hasFingerprintHardware(Context mContext) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            //Fingerprint API only available on from Android 6.0 (M)
+            FingerprintManager fingerprintManager = (FingerprintManager) mContext.getSystemService(Context.FINGERPRINT_SERVICE);
+
+            if (fingerprintManager == null) {
+                return false;
+            }
+
+            return fingerprintManager.isHardwareDetected();
+        } else {
+            // Supporting devices with SDK < 23
+            FingerprintManagerCompat fingerprintManager = FingerprintManagerCompat.from(getReactApplicationContext());
+
+            if (fingerprintManager == null) {
+                return false;
+            }
+
+            return fingerprintManager.isHardwareDetected();
+        }
+
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private int getFingerprintInfo(Context context) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException, ClassNotFoundException {
+        FingerprintManager fingerprintManager = (FingerprintManager) context.getSystemService(Context.FINGERPRINT_SERVICE);
+        Method method = FingerprintManager.class.getDeclaredMethod("getEnrolledFingerprints");
+        Object obj = method.invoke(fingerprintManager);
+
+        return ((ArrayList) obj).size();
+
+    }
 
     // for Samsung/MeiZu compat, Android v16-23
     private FingerprintIdentify getFingerprintIdentify() {

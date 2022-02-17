@@ -10,11 +10,35 @@
 
 RCT_EXPORT_MODULE();
 
+RCT_EXPORT_METHOD(hasBiometricSettingsChanged: (RCTResponseSenderBlock)callback)
+{
+    LAContext *context = [[LAContext alloc] init];
+    NSError *error;
+    NSNumber *message;
+    
+    if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&error]) {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        NSData *oldDomainState = [defaults objectForKey:@"domainTouchID"];
+        NSData *domainState = [context evaluatedPolicyDomainState];
+        // check for domain state changes
+        if ([oldDomainState isEqual:domainState]) {
+            message = 0;
+        } else {
+            message = @1;
+        }
+        // save the domain state that will be loaded next time
+        oldDomainState = [context evaluatedPolicyDomainState];
+        [defaults setObject:oldDomainState forKey:@"domainTouchID"];
+        [defaults synchronize];
+        callback(@[[NSNull null], [NSNumber numberWithBool:message]]);
+    }
+}
+
 RCT_EXPORT_METHOD(isSensorAvailable: (RCTResponseSenderBlock)callback)
 {
     LAContext *context = [[LAContext alloc] init];
     NSError *error;
-
+    
     if ([context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&error]) {
         callback(@[[NSNull null], [self getBiometryType:context]]);
     } else {
@@ -120,6 +144,12 @@ RCT_EXPORT_METHOD(authenticate: (NSString *)reason
              }
 
              if (success) {
+                 NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+                 NSData *oldDomainState = [defaults objectForKey:@"domainTouchID"];
+                 // save the domain state that will be loaded next time
+                 oldDomainState = [context evaluatedPolicyDomainState];
+                 [defaults setObject:oldDomainState forKey:@"domainTouchID"];
+                 [defaults synchronize];
                  // Authenticated Successfully
                  callback(@[[NSNull null], @"Authenticated with Fingerprint Scanner."]);
                  return;
